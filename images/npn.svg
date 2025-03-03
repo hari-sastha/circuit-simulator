@@ -1,0 +1,25 @@
+<svg width="140" height="65" viewBox="0 0 140 65" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+            refX="10" refY="3.5" orient="auto" markerUnits="strokeWidth">
+            <polygon points="0 0, 10 3.5, 0 7" fill="black"/>
+        </marker>
+    </defs>
+
+    <g class="component" id="npn">
+
+        <!-- line without arrow -->
+        <line x1="73" y1="25" x2="105" y2="15" stroke="black" stroke-width="2"/>
+        
+        <!-- vertical line -->
+        <line x1="73" y1="10" x2="73" y2="55" stroke="black" stroke-width="2"/>
+
+        <!-- Line with Arrow -->
+        <line x1="73" y1="35" x2="105" y2="50" stroke="black" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+        <!-- Node Wires -->
+        <line x1="105" y1="15" x2="105" y2="2" stroke="black" stroke-width="2"/>
+        <line x1="105" y1="50" x2="105" y2="65" stroke="black" stroke-width="2"/>
+        <line x1="10" y1="32.5" x2="73" y2="32.5" stroke="black" stroke-width="2"/>
+    </g>
+</svg>

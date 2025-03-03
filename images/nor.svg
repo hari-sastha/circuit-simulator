@@ -1,0 +1,18 @@
+<svg width="140" height="65" viewBox="0 0 140 65" xmlns="http://www.w3.org/2000/svg">
+    <g class="component" id="nor_gate">
+        
+        <!-- Input Wires -->
+        <line x1="0" y1="3" x2="30" y2="3" stroke="black" stroke-width="2"/>
+        <line x1="0" y1="62" x2="30" y2="62" stroke="black" stroke-width="2"/>
+        
+        <!-- NOR Gate Shape (Modified Path) -->
+        <path d="M30,3 C50,3 80,3 95,32.5 C80,62 50,62 30,62 A5,5 0 1,0 30,3 Z" fill="none" stroke="black" stroke-width="2"/>
+        
+        <!-- Output Circle for NOR Gate -->
+        <circle cx="100" cy="32.5" r="5" fill="none" stroke="black" stroke-width="2"/>
+        
+        <!-- Output Wire (Extended Length) -->
+        <line x1="105" y1="32.5" x2="130" y2="32.5" stroke="black" stroke-width="2"/>
+        
+    </g>
+</svg>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circuit Simulator</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .toolbar {
+            background: #333;
+            color: white;
+            padding: 10px;
+            display: flex;
+            gap: 20px;
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1000;
+        }
+        .toolbar-item {
+            position: relative;
+            cursor: pointer;
+        }
+        .dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            color: black;
+            border: 1px solid #ccc;
+            display: none;
+            flex-direction: column;
+            width: 100px;
+        }
+        .toolbar-item:hover .dropdown-menu {
+            display: flex;
+        }
+        .dropdown-menu div {
+            padding: 5px;
+            cursor: pointer;
+        }
+        .dropdown-menu div:hover {
+            background: #ddd;
+        }
+        body {
+            padding-top: 50px; /* Adjust based on toolbar height */
+        }
+        .dropdown-arrow {
+            cursor: pointer;
+            display: inline-block;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <div class="toolbar-item">File
+            <div class="dropdown-menu">
+                <label for="file-input" style="cursor: pointer; padding: 5px;">Open</label>
+                <input id="file-input" type="file" accept=".circ" style="display: none;" />
+                <div onclick="saveCircuitAs()">Save As</div>
+                <div>Exit</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="sidebar">
+        <h3>Components <span class="dropdown-arrow" id="components-arrow">&#9660;</span></h3>
+        <div id="components-list">
+            <div class="component" data-type="resistor">
+                <img src="images/resistor.svg" alt="Resistor">
+            </div>
+            <div class="component" data-type="capacitor">
+                <img src="images/capacitor.svg" alt="Capacitor">
+            </div>
+            <div class="component" data-type="inductor">
+                <img src="images/inductor.svg" alt="Inductor">
+            </div>
+            <div class="component" data-type="battery">
+                <img src="images/battery.svg" alt="Battery">
+            </div>
+            <div class="component" data-type="led">
+                <img src="images/led.svg" alt="Led">
+            </div>
+            <div class="npn-component" data-type="npn">
+                <img src="images/npn.svg" alt="NPN">
+            </div>
+            <div class="pnp-component" data-type="pnp">
+                <img src="images/pnp.svg" alt="PNP">
+            </div>
+            <div class="component" data-type="switch">
+                <img src="images/switch.svg" alt="Switch">
+            </div>
+        </div>
+
+        <h3>Logic Components <span class="dropdown-arrow" id="logic-components-arrow">&#9660;</span></h3>
+        <div id="logic-components-list">
+            <div class="logic-component" data-type="and_gate">
+                <img src="images/and.svg" alt="And_gate">
+            </div>
+            <div class="logic-component" data-type="or_gate">
+                <img src="images/or.svg" alt="Or_gate">
+            </div>
+            <div class="logic-component" data-type="not_gate">
+                <img src="images/not.svg" alt="Not_gate">
+            </div>
+            <div class="logic-component" data-type="nand_gate">
+                <img src="images/nand.svg" alt="Nand_gate">
+            </div>
+            <div class="logic-component" data-type="nor_gate">
+                <img src="images/nor.svg" alt="Nor_gate">
+            </div>
+            <div class="logic-component" data-type="xor_gate">
+                <img src="images/xor.svg" alt="Xor_gate">
+            </div>
+            <div class="logic-component" data-type="xnor_gate">
+                <img src="images/xnor.svg" alt="Xnor_gate">
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="circuitCanvas"></canvas>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="contextMenu" class="context-menu">
+        <div id="rotate">Rotate</div>
+        <div id="duplicate">Duplicate</div>
+        <div id="delete">Delete</div>
+        <div id="colors">Colors</div>
+    </div>
+
+    <!-- Color Menu -->
+    <div id="colorMenu" class="context-menu">
+        <div class="color-option" data-color="red">Red</div>
+        <div class="color-option" data-color="black">Black</div>
+        <div class="color-option" data-color="green">Green</div>
+        <div class="color-option" data-color="blue">Blue</div>
+        <div class="color-option" data-color="yellow">Yellow</div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        document.getElementById('components-arrow').addEventListener('click', function() {
+            const componentsList = document.getElementById('components-list');
+            if (componentsList.style.display === 'none') {
+                componentsList.style.display = 'block';
+                this.innerHTML = '&#9650;';
+            } else {
+                componentsList.style.display = 'none';
+                this.innerHTML = '&#9660;';
+            }
+        });
+
+        document.getElementById('logic-components-arrow').addEventListener('click', function() {
+            const logicComponentsList = document.getElementById('logic-components-list');
+            if (logicComponentsList.style.display === 'none') {
+                logicComponentsList.style.display = 'block';
+                this.innerHTML = '&#9650;';
+            } else {
+                logicComponentsList.style.display = 'none';
+                this.innerHTML = '&#9660;';
+            }
+        });
+
+        // Initial state
+        document.getElementById('components-list').style.display = 'none';
+        document.getElementById('logic-components-list').style.display = 'none';
+    </script>
+</body>
+</html>

@@ -25,6 +25,9 @@ let mouseDown = false;
 let undoStack = [];
 let redoStack = [];
 
+let draggingSelection = false;
+let selectionOffset = { x: 0, y: 0 };
+
 // Increase canvas size
 canvas.width = window.innerWidth * 2;
 canvas.height = window.innerHeight * 2;
@@ -94,7 +97,7 @@ function drawGrid() {
     }
 
     // Draw selected area with transparent light blue color
-    if (selectedItems.length > 0) {
+    if (selectedItems.length > 0 && !draggingSelection) {
         ctx.fillStyle = "rgba(173, 216, 230, 0.3)"; // Light blue with transparency
         ctx.fillRect(
             Math.min(selectionStart.x, selectionEnd.x),
@@ -245,6 +248,33 @@ canvas.addEventListener("mousemove", (event) => {
         drawGrid();
     }
 
+    if (draggingSelection) {
+        const mouseX = (event.offsetX - panOffset.x * scale) / scale;
+        const mouseY = (event.offsetY - panOffset.y * scale) / scale;
+
+        const deltaX = Math.round(mouseX / gridSize) * gridSize - selectionOffset.x;
+        const deltaY = Math.round(mouseY / gridSize) * gridSize - selectionOffset.y;
+
+        selectedItems.forEach(item => {
+            if (item.path) {
+                item.path.forEach(point => {
+                    point.x += deltaX;
+                    point.y += deltaY;
+                });
+            } else {
+                item.x += deltaX;
+                item.y += deltaY;
+                updateNodes(item);
+            }
+        });
+
+        selectionOffset.x = Math.round(mouseX / gridSize) * gridSize;
+        selectionOffset.y = Math.round(mouseY / gridSize) * gridSize;
+
+        updateWires();
+        drawGrid();
+    }
+
     if (selecting) {
         selectionEnd.x = (event.offsetX - panOffset.x * scale) / scale;
         selectionEnd.y = (event.offsetY - panOffset.y * scale) / scale;
@@ -277,6 +307,31 @@ canvas.addEventListener("mousedown", (event) => {
             draggingComponent = comp;
             draggingOffset.x = event.offsetX - (comp.x + panOffset.x) * scale;
             draggingOffset.y = event.offsetY - (comp.y + panOffset.y) * scale;
+            return;
+        }
+    }
+
+    if (event.button === 0 && selectedItems.length > 0) {
+        const mouseX = (event.offsetX - panOffset.x * scale) / scale;
+        const mouseY = (event.offsetY - panOffset.y * scale) / scale;
+
+        const selectionRect = {
+            x: Math.min(selectionStart.x, selectionEnd.x),
+            y: Math.min(selectionStart.y, selectionEnd.y),
+            width: Math.abs(selectionEnd.x - selectionStart.x),
+            height: Math.abs(selectionEnd.y - selectionStart.y),
+        };
+
+        if (
+            mouseX >= selectionRect.x &&
+            mouseX <= selectionRect.x + selectionRect.width &&
+            mouseY >= selectionRect.y &&
+            mouseY <= selectionRect.y + selectionRect.height
+        ) {
+            draggingSelection = true;
+            selectionOffset.x = Math.round(mouseX / gridSize) * gridSize;
+            selectionOffset.y = Math.round(mouseY / gridSize) * gridSize;
+            drawGrid(); // Redraw grid to remove transparent blue color
             return;
         }
     }
@@ -342,6 +397,8 @@ canvas.addEventListener("mouseup", (event) => {
     mouseDown = false;
     draggingComponent = null;
     panning = false;
+
+    draggingSelection = false;
 
     if (selecting) {
         selecting = false;
@@ -558,6 +615,7 @@ function showContextMenu(x, y, isComponent, isSelection = false) {
         menu.appendChild(deleteOption);
         menu.appendChild(colorOption);
     } else {
+        // Remove the move option
         const deleteOption = document.createElement("div");
         deleteOption.innerText = "Delete";
         deleteOption.onclick = function() {
@@ -660,6 +718,20 @@ document.addEventListener("keydown", (event) => {
             deleteComponent(contextMenuComponent);
         } else if (contextMenuWire) {
             deleteWire(contextMenuWire);
+        } else if (selectedItems.length > 0) {
+            const deletedItems = [];
+            selectedItems.forEach(item => {
+                if (item.path) {
+                    deleteWire(item);
+                    deletedItems.push({ type: "wire", item });
+                } else {
+                    deleteComponent(item);
+                    deletedItems.push({ type: "component", item });
+                }
+            });
+            selectedItems = [];
+            undoStack.push({ action: "delete", type: "group", items: deletedItems });
+            drawGrid();
         }
     } else if (event.key === " ") {
         spacePressed = true;

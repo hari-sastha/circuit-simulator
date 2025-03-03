@@ -211,6 +211,9 @@ canvas.addEventListener("drop", (event) => {
     // Push action to undo stack
     undoStack.push({ action: "add", type: "component", component: newComponent });
 
+    // Clear selected items to ensure blue transparent color does not reappear
+    selectedItems = [];
+
     drawGrid();
 });
 

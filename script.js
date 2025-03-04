@@ -28,6 +28,11 @@ let redoStack = [];
 let draggingSelection = false;
 let selectionOffset = { x: 0, y: 0 };
 
+let initialPositions = [];
+
+let draggingWire = null;
+let draggingWirePointIndex = null;
+
 // Increase canvas size
 canvas.width = window.innerWidth * 2;
 canvas.height = window.innerHeight * 2;
@@ -97,7 +102,7 @@ function drawGrid() {
     }
 
     // Draw selected area with transparent light blue color
-    if (selectedItems.length > 0 && !draggingSelection) {
+    if (selectedItems.length > 0 && !draggingSelection && !draggingComponent) {
         ctx.fillStyle = "rgba(173, 216, 230, 0.3)"; // Light blue with transparency
         ctx.fillRect(
             Math.min(selectionStart.x, selectionEnd.x),
@@ -283,6 +288,34 @@ canvas.addEventListener("mousemove", (event) => {
         selectionEnd.y = (event.offsetY - panOffset.y * scale) / scale;
         drawGrid();
     }
+
+    if (draggingWire && draggingWirePointIndex !== null) {
+        let x = Math.round((event.offsetX - panOffset.x * scale) / scale / gridSize) * gridSize;
+        let y = Math.round((event.offsetY - panOffset.y * scale) / scale / gridSize) * gridSize;
+
+        // Ensure orthogonal movement
+        let prevPoint = draggingWire.path[draggingWirePointIndex - 1];
+        let nextPoint = draggingWire.path[draggingWirePointIndex + 1];
+        if (prevPoint) {
+            if (Math.abs(x - prevPoint.x) > Math.abs(y - prevPoint.y)) {
+                y = prevPoint.y;
+            } else {
+                x = prevPoint.x;
+            }
+        } else if (nextPoint) {
+            if (Math.abs(x - nextPoint.x) > Math.abs(y - nextPoint.y)) {
+                y = nextPoint.y;
+            } else {
+                x = nextPoint.x;
+            }
+        }
+
+        draggingWire.path[draggingWirePointIndex].x = x;
+        draggingWire.path[draggingWirePointIndex].y = y;
+
+        updateWires();
+        drawGrid();
+    }
 });
 
 // Handle clicking to start wire, move components, pan grid, or select
@@ -334,6 +367,15 @@ canvas.addEventListener("mousedown", (event) => {
             draggingSelection = true;
             selectionOffset.x = Math.round(mouseX / gridSize) * gridSize;
             selectionOffset.y = Math.round(mouseY / gridSize) * gridSize;
+
+            // Capture initial positions for undo
+            initialPositions = selectedItems.map(item => ({
+                item,
+                x: item.x,
+                y: item.y,
+                path: item.path ? item.path.map(point => ({ x: point.x, y: point.y })) : null
+            }));
+
             drawGrid(); // Redraw grid to remove transparent blue color
             return;
         }
@@ -360,6 +402,18 @@ canvas.addEventListener("mousedown", (event) => {
                 const dist = Math.sqrt((mouseX - node.x) ** 2 + (mouseY - node.y) ** 2);
                 if (dist < snapRadius) {  // Use snap radius for easier connection
                     // Complete the wire
+                    let lastPoint = wirePath[wirePath.length - 1];
+                    let x = Math.round(node.x / gridSize) * gridSize;
+                    let y = Math.round(node.y / gridSize) * gridSize;
+
+                    // Ensure orthogonal movement
+                    if (Math.abs(x - lastPoint.x) > Math.abs(y - lastPoint.y)) {
+                        y = lastPoint.y;
+                    } else {
+                        x = lastPoint.x;
+                    }
+
+                    wirePath.push({ x, y });
                     wirePath.push({ x: node.x, y: node.y, component: comp, nodeIndex: comp.nodes.indexOf(node) });
                     finalizeWire();
                     return;
@@ -393,6 +447,23 @@ canvas.addEventListener("mousedown", (event) => {
         selectedItems = [];
         drawGrid();
     }
+
+    if (event.button === 0 && !draggingComponent && !drawingWire && !selecting) {
+        const mouseX = (event.offsetX - panOffset.x * scale) / scale;
+        const mouseY = (event.offsetY - panOffset.y * scale) / scale;
+
+        for (let wire of wires) {
+            for (let i = 0; i < wire.path.length; i++) {
+                const point = wire.path[i];
+                const dist = Math.sqrt((mouseX - point.x) ** 2 + (mouseY - point.y) ** 2);
+                if (dist < snapRadius) {
+                    draggingWire = wire;
+                    draggingWirePointIndex = i;
+                    return;
+                }
+            }
+        }
+    }
 });
 
 // Handle releasing mouse to stop dragging components, panning, or selecting
@@ -401,7 +472,26 @@ canvas.addEventListener("mouseup", (event) => {
     draggingComponent = null;
     panning = false;
 
-    draggingSelection = false;
+    if (draggingSelection) {
+        draggingSelection = false;
+
+        // Capture final positions for undo
+        const finalPositions = selectedItems.map(item => ({
+            item,
+            x: item.x,
+            y: item.y,
+            path: item.path ? item.path.map(point => ({ x: point.x, y: point.y })) : null
+        }));
+
+        // Push action to undo stack
+        undoStack.push({
+            action: "move",
+            initialPositions,
+            finalPositions
+        });
+
+        redoStack = []; // Clear redo stack
+    }
 
     if (selecting) {
         selecting = false;
@@ -433,6 +523,11 @@ canvas.addEventListener("mouseup", (event) => {
         });
 
         drawGrid();
+    }
+
+    if (draggingWire) {
+        draggingWire = null;
+        draggingWirePointIndex = null;
     }
 });
 
@@ -501,6 +596,7 @@ canvas.addEventListener("contextmenu", (event) => {
     if (isOnWire) {
         contextMenuWire = isOnWire;
         showContextMenu(event.pageX, event.pageY, false);
+        return;
     }
 
     // If selection exists, show context menu for selected items
@@ -529,6 +625,11 @@ function showContextMenu(x, y, isComponent, isSelection = false) {
     menu.className = "context-menu show";
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;
+
+    // Clear selected items to ensure blue transparent color does not reappear
+    if (!isSelection) {
+        selectedItems = [];
+    }
 
     if (isComponent) {
         const rotateOption = document.createElement("div");
@@ -563,6 +664,7 @@ function showContextMenu(x, y, isComponent, isSelection = false) {
         const deleteOption = document.createElement("div");
         deleteOption.innerText = "Delete";
         deleteOption.onclick = function() {
+            console.log("Delete option clicked for component");
             if (contextMenuComponent) {
                 deleteComponent(contextMenuComponent);
             }
@@ -576,6 +678,7 @@ function showContextMenu(x, y, isComponent, isSelection = false) {
         const deleteOption = document.createElement("div");
         deleteOption.innerText = "Delete Wire";
         deleteOption.onclick = function() {
+            console.log("Delete option clicked for wire");
             if (contextMenuWire) {
                 deleteWire(contextMenuWire);
             }
@@ -609,7 +712,6 @@ function showContextMenu(x, y, isComponent, isSelection = false) {
             colorMenu.style.display = "block";
         });
 
-
         colorOption.addEventListener("mouseleave", () => {
             colorMenu.style.display = "none";
         });
@@ -618,24 +720,12 @@ function showContextMenu(x, y, isComponent, isSelection = false) {
         menu.appendChild(deleteOption);
         menu.appendChild(colorOption);
     } else {
-        // Remove the move option
         const deleteOption = document.createElement("div");
         deleteOption.innerText = "Delete";
         deleteOption.onclick = function() {
-            const deletedItems = [];
-            selectedItems.forEach(item => {
-                if (item.path) {
-                    deleteWire(item);
-                    deletedItems.push({ type: "wire", item });
-                } else {
-                    deleteComponent(item);
-                    deletedItems.push({ type: "component", item });
-                }
-            });
-            selectedItems = [];
-            undoStack.push({ action: "delete", type: "group", items: deletedItems });
+            console.log("Delete option clicked for selected items");
+            deleteSelectedItems();
             document.body.removeChild(menu);
-            drawGrid();
         };
 
         menu.appendChild(deleteOption);
@@ -704,7 +794,7 @@ function deleteComponent(component) {
     });
 
     console.log("Component Deleted:", component);
-    console.log("Undo Stack:", undoStack);
+    console.log("Undo Stack:", component);
 
     drawGrid();
 }
@@ -717,25 +807,7 @@ document.addEventListener("keydown", (event) => {
         updateWires();
         drawGrid();
     } else if (event.key === "Delete") {
-        if (contextMenuComponent) {
-            deleteComponent(contextMenuComponent);
-        } else if (contextMenuWire) {
-            deleteWire(contextMenuWire);
-        } else if (selectedItems.length > 0) {
-            const deletedItems = [];
-            selectedItems.forEach(item => {
-                if (item.path) {
-                    deleteWire(item);
-                    deletedItems.push({ type: "wire", item });
-                } else {
-                    deleteComponent(item);
-                    deletedItems.push({ type: "component", item });
-                }
-            });
-            selectedItems = [];
-            undoStack.push({ action: "delete", type: "group", items: deletedItems });
-            drawGrid();
-        }
+        deleteSelectedItems();
     } else if (event.key === " ") {
         spacePressed = true;
     } else if (event.ctrlKey && event.key === "z") {
@@ -750,6 +822,33 @@ document.addEventListener("keyup", (event) => {
         spacePressed = false;
     }
 });
+
+// Function to delete selected items
+function deleteSelectedItems() {
+    console.log("deleteSelectedItems called");
+    if (contextMenuComponent) {
+        console.log("Deleting context menu component");
+        deleteComponent(contextMenuComponent);
+    } else if (contextMenuWire) {
+        console.log("Deleting context menu wire");
+        deleteWire(contextMenuWire);
+    } else if (selectedItems.length > 0) {
+        console.log("Deleting selected items:", selectedItems);
+        const deletedItems = [];
+        selectedItems.forEach(item => {
+            if (item.path) {
+                deleteWire(item);
+                deletedItems.push({ type: "wire", item });
+            } else {
+                deleteComponent(item);
+                deletedItems.push({ type: "component", item });
+            }
+        });
+        selectedItems = [];
+        undoStack.push({ action: "delete", type: "group", items: deletedItems });
+        drawGrid();
+    }
+}
 
 // Undo function
 function undo() {
@@ -789,7 +888,25 @@ function undo() {
                     }
                 });
             }
+        } else if (action.action === "move") {
+            // Undo moving components
+            action.initialPositions.forEach(({ item, x, y, path }) => {
+                if (path) {
+                    item.path.forEach((point, index) => {
+                        point.x = path[index].x;
+                        point.y = path[index].y;
+                    });
+                } else {
+                    item.x = x;
+                    item.y = y;
+                    updateNodes(item);
+                }
+            });
+            updateWires();
         }
+
+        // Clear selected items to ensure blue transparent color does not reappear
+        selectedItems = [];
 
         drawGrid();
     }
@@ -833,6 +950,21 @@ function redo() {
                     }
                 });
             }
+        } else if (action.action === "move") {
+            // Redo moving components
+            action.finalPositions.forEach(({ item, x, y, path }) => {
+                if (path) {
+                    item.path.forEach((point, index) => {
+                        point.x = path[index].x;
+                        point.y = path[index].y;
+                    });
+                } else {
+                    item.x = x;
+                    item.y = y;
+                    updateNodes(item);
+                }
+            });
+            updateWires();
         }
 
         drawGrid();
@@ -884,7 +1016,7 @@ document.addEventListener("DOMContentLoaded", function() {
 function serializeCircuit() {
     const circuitData = {
         components: components.map(comp => ({
-            type: comp.type,
+            type: comp.img.alt, // Assuming the type is stored in the image's alt attribute
             x: comp.x,
             y: comp.y,
             width: comp.width,
@@ -896,7 +1028,7 @@ function serializeCircuit() {
             path: wire.path.map(point => ({
                 x: point.x,
                 y: point.y,
-                component: point.component ? { type: point.component.type } : null,
+                component: point.component ? { type: point.component.img.alt } : null,
                 nodeIndex: point.nodeIndex
             }))
         }))
@@ -904,20 +1036,18 @@ function serializeCircuit() {
     return JSON.stringify(circuitData, null, 2);
 }
 
-function saveCircuitAs() {
+function saveCircuitToFile() {
     const circuitData = serializeCircuit();
     const blob = new Blob([circuitData], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-
+    
     const a = document.createElement('a');
     a.href = url;
-    a.download = prompt("Enter the file name", "circuit.circ");
-    if (a.download) {
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
+    a.download = 'circuit.circ';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 document.getElementById('file-input').addEventListener('change', function(event) {
@@ -925,36 +1055,38 @@ document.getElementById('file-input').addEventListener('change', function(event)
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const circuitData = JSON.parse(e.target.result);
+reader.onload = (e) => {
+    try {
+        const circuitData = JSON.parse(e.target.result);
 
-            const updatedComponents = circuitData.components.map(comp => {
-                return new Promise((resolve) => {
-                    const img = new Image();
-                    img.src = `images/${comp.type}.svg`;
-                    img.onload = () => resolve({ ...comp, img });
-                });
+        const updatedComponents = circuitData.components.map(comp => {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.src = `images/${comp.type}.svg`;
+                img.onload = () => resolve({ ...comp, img });
             });
+        });
 
-            Promise.all(updatedComponents).then(componentsWithImages => {
-                console.log("Loaded components:", componentsWithImages);
-                console.log("Loaded wires:", circuitData.wires);
-                
-                components = componentsWithImages;
-                wires = circuitData.wires;
-                drawGrid();
-            }).catch(error => {
-                console.error("Error loading components:", error);
-                alert("Failed to load components from the file.");
-            });
-        } catch (error) {
-            console.error("Error parsing file:", error);
-            alert("Failed to open the file. Please ensure it is a valid .circ file.");
-        }
-    };
-    reader.readAsText(file);
+        Promise.all(updatedComponents).then(componentsWithImages => {
+            console.log("Loaded components:", componentsWithImages);
+            console.log("Loaded wires:", circuitData.wires);
+            
+            components = componentsWithImages;
+            wires = circuitData.wires;
+            drawGrid();
+        }).catch(error => {
+            console.error("Error loading components:", error);
+            alert("Failed to load components from the file.");
+        });
+    } catch (error) {
+        console.error("Error parsing file:", error);
+        alert("Failed to open the file. Please ensure it is a valid .circ file.");
+    }
+};
+reader.readAsText(file);
 });
+
+document.getElementById('save-button').addEventListener('click', saveCircuitToFile);
 
 // Initial draw
 drawGrid();

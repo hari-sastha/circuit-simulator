@@ -58,7 +58,7 @@
             <div class="dropdown-menu">
                 <label for="file-input" style="cursor: pointer; padding: 5px;">Open</label>
                 <input id="file-input" type="file" accept=".circ" style="display: none;" />
-                <div onclick="saveCircuitAs()">Save As</div>
+                <div onclick="saveCircuitToFile()">Save As</div>
                 <div>Exit</div>
             </div>
         </div>
@@ -89,7 +89,7 @@
                 <img src="images/pnp.svg" alt="PNP">
             </div>
             <div class="component" data-type="switch">
-                <img src="images/switch.svg" alt="Switch">
+                <img src="images/switch_open.svg" alt="Switch">
             </div>
         </div>
 
@@ -163,6 +163,17 @@
                 this.innerHTML = '&#9660;';
             }
         });
+
+        function switchLever(event) {
+            let switchLever = document.getElementById('switch_lever');
+            if (switchLever.getAttribute('x2') === '125') {
+                switchLever.setAttribute('x2', '30');
+                switchLever.setAttribute('y2', '70');
+            } else {
+                switchLever.setAttribute('x2', '125');
+                switchLever.setAttribute('y2', '15');
+            }
+        }
 
         // Initial state
         document.getElementById('components-list').style.display = 'none';

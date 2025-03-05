@@ -21,6 +21,8 @@ let panStart = { x: 0, y: 0 };
 let panOffset = { x: 0, y: 0 };
 let spacePressed = false;
 let mouseDown = false;
+let isDragging = false;
+let dragStartTime = 0;
 
 let undoStack = [];
 let redoStack = [];
@@ -254,24 +256,29 @@ canvas.addEventListener("mousemove", (event) => {
         updateWires();
 
         drawGrid();
+        isDragging = true;
     }
 
     if (draggingSelection) {
+        console.log("Dragging selection...");
+
         const mouseX = (event.offsetX - panOffset.x * scale) / scale;
         const mouseY = (event.offsetY - panOffset.y * scale) / scale;
 
         const deltaX = Math.round(mouseX / gridSize) * gridSize - selectionOffset.x;
         const deltaY = Math.round(mouseY / gridSize) * gridSize - selectionOffset.y;
 
+        console.log(`DeltaX: ${deltaX}, DeltaY: ${deltaY}`);
+
         selectedItems.forEach(item => {
             if (item.path) {
                 item.path.forEach(point => {
-                    point.x += deltaX;
-                    point.y += deltaY;
+                    point.x = Math.round((point.x + deltaX) / gridSize) * gridSize;
+                    point.y = Math.round((point.y + deltaY) / gridSize) * gridSize;
                 });
             } else {
-                item.x += deltaX;
-                item.y += deltaY;
+                item.x = Math.round((item.x + deltaX) / gridSize) * gridSize;
+                item.y = Math.round((item.y + deltaY) / gridSize) * gridSize;
                 updateNodes(item);
             }
         });
@@ -324,6 +331,8 @@ canvas.addEventListener("mousedown", (event) => {
     const mouseY = (event.offsetY - panOffset.y * scale) / scale;
 
     mouseDown = true;
+    isDragging = false;
+    dragStartTime = Date.now();
     if (event.button === 2 || spacePressed) {
         // Start panning
         panning = true;
@@ -332,75 +341,16 @@ canvas.addEventListener("mousedown", (event) => {
         return;
     }
 
-    // Check if clicking on a component to move it
+    // Check if clicking near a node to start or complete a wire
     for (let comp of components) {
-        if (
-            mouseX >= comp.x &&
-            mouseX <= comp.x + comp.width &&
-            mouseY >= comp.y &&
-            mouseY <= comp.y + comp.height
-        ) {
-            draggingComponent = comp;
-            draggingOffset.x = event.offsetX - (comp.x + panOffset.x) * scale;
-            draggingOffset.y = event.offsetY - (comp.y + panOffset.y) * scale;
-            return;
-        }
-    }
-
-    if (event.button === 0 && selectedItems.length > 0) {
-        const mouseX = (event.offsetX - panOffset.x * scale) / scale;
-        const mouseY = (event.offsetY - panOffset.y * scale) / scale;
-
-        const selectionRect = {
-            x: Math.min(selectionStart.x, selectionEnd.x),
-            y: Math.min(selectionStart.y, selectionEnd.y),
-            width: Math.abs(selectionEnd.x - selectionStart.x),
-            height: Math.abs(selectionEnd.y - selectionStart.y),
-        };
-
-        if (
-            mouseX >= selectionRect.x &&
-            mouseX <= selectionRect.x + selectionRect.width &&
-            mouseY >= selectionRect.y &&
-            mouseY <= selectionRect.y + selectionRect.height
-        ) {
-            draggingSelection = true;
-            selectionOffset.x = Math.round(mouseX / gridSize) * gridSize;
-            selectionOffset.y = Math.round(mouseY / gridSize) * gridSize;
-
-            // Capture initial positions for undo
-            initialPositions = selectedItems.map(item => ({
-                item,
-                x: item.x,
-                y: item.y,
-                path: item.path ? item.path.map(point => ({ x: point.x, y: point.y })) : null
-            }));
-
-            drawGrid(); // Redraw grid to remove transparent blue color
-            return;
-        }
-    }
-
-    // If not drawing a wire, check if clicked near a node (to start)
-    if (!drawingWire) {
-        for (let comp of components) {
-            for (let node of comp.nodes) {
-                const dist = Math.sqrt((mouseX - node.x) ** 2 + (mouseY - node.y) ** 2);
-                if (dist < snapRadius) {  // Use snap radius for easier connection
+        for (let node of comp.nodes) {
+            const dist = Math.sqrt((mouseX - node.x) ** 2 + (mouseY - node.y) ** 2);
+            if (dist < snapRadius) {  // Use snap radius for easier connection
+                if (!drawingWire) {
                     // Start a new wire
                     drawingWire = true;
                     wirePath = [{ x: node.x, y: node.y, component: comp, nodeIndex: comp.nodes.indexOf(node) }];
-                    drawGrid();
-                    return;
-                }
-            }
-        }
-    } else {
-        // If already drawing, check if clicked near another node to complete wire
-        for (let comp of components) {
-            for (let node of comp.nodes) {
-                const dist = Math.sqrt((mouseX - node.x) ** 2 + (mouseY - node.y) ** 2);
-                if (dist < snapRadius) {  // Use snap radius for easier connection
+                } else {
                     // Complete the wire
                     let lastPoint = wirePath[wirePath.length - 1];
                     let x = Math.round(node.x / gridSize) * gridSize;
@@ -416,12 +366,72 @@ canvas.addEventListener("mousedown", (event) => {
                     wirePath.push({ x, y });
                     wirePath.push({ x: node.x, y: node.y, component: comp, nodeIndex: comp.nodes.indexOf(node) });
                     finalizeWire();
-                    return;
                 }
+                drawGrid();
+                return;
             }
         }
+    }
 
-        // If clicked in the grid, add a waypoint (adjustment point)
+    // Check if clicking on a component to move it or toggle switch state
+    for (let comp of components) {
+        if (
+            mouseX >= comp.x &&
+            mouseX <= comp.x + comp.width &&
+            mouseY >= comp.y &&
+            mouseY <= comp.y + comp.height
+        ) {
+            if (selectedItems.includes(comp)) {
+                draggingSelection = true;
+                selectionOffset.x = mouseX;
+                selectionOffset.y = mouseY;
+                initialPositions = selectedItems.map(item => ({
+                    item,
+                    x: item.x,
+                    y: item.y,
+                    path: item.path ? item.path.map(point => ({ x: point.x, y: point.y })) : null
+                }));
+                console.log("Started dragging selection:", initialPositions);
+            } else {
+                draggingComponent = comp;
+                draggingOffset.x = event.offsetX - (comp.x + panOffset.x) * scale;
+                draggingOffset.y = event.offsetY - (comp.y + panOffset.y) * scale;
+            }
+            return;
+        }
+    }
+
+    // Check if clicking within the selected area to drag the selection
+    if (selectedItems.length > 0) {
+        const selectionRect = {
+            x: Math.min(selectionStart.x, selectionEnd.x),
+            y: Math.min(selectionStart.y, selectionEnd.y),
+            width: Math.abs(selectionEnd.x - selectionStart.x),
+            height: Math.abs(selectionEnd.y - selectionStart.y),
+        };
+
+        if (
+            mouseX >= selectionRect.x &&
+            mouseX <= selectionRect.x + selectionRect.width &&
+            mouseY >= selectionRect.y &&
+            mouseY <= selectionRect.y + selectionRect.height
+        ) {
+            draggingSelection = true;
+            selectionOffset.x = mouseX;
+            selectionOffset.y = mouseY;
+            initialPositions = selectedItems.map(item => ({
+                item,
+                x: item.x,
+                y: item.y,
+                path: item.path ? item.path.map(point => ({ x: point.x, y: point.y })) : null
+            }));
+            console.log("Started dragging selection:", initialPositions);
+            return;
+        }
+    }
+
+    // If clicked in the grid, add a waypoint (adjustment point)
+    if (drawingWire) {
         let lastPoint = wirePath[wirePath.length - 1];
         let x = Math.round(mouseX / gridSize) * gridSize;
         let y = Math.round(mouseY / gridSize) * gridSize;
@@ -464,15 +474,33 @@ canvas.addEventListener("mousedown", (event) => {
             }
         }
     }
+
+    // Check if clicking on a switch in the selected items
+    if (selectedItems.length > 0) {
+        selectedItems.forEach(item => {
+            if (item.img && item.img.alt === "Switch" &&
+                mouseX >= item.x &&
+                mouseX <= item.x + item.width &&
+                mouseY >= item.y &&
+                mouseY <= item.y + item.height) {
+                toggleSwitch(item);
+            }
+        });
+    }
 });
 
-// Handle releasing mouse to stop dragging components, panning, or selecting
 canvas.addEventListener("mouseup", (event) => {
     mouseDown = false;
+    const dragDuration = Date.now() - dragStartTime;
+    if (!isDragging && dragDuration < 200 && draggingComponent && draggingComponent.img.alt === "Switch") {
+        toggleSwitch(draggingComponent);
+    }
     draggingComponent = null;
     panning = false;
 
     if (draggingSelection) {
+        console.log("Stopped dragging selection.");
+
         draggingSelection = false;
 
         // Capture final positions for undo
@@ -483,6 +511,8 @@ canvas.addEventListener("mouseup", (event) => {
             path: item.path ? item.path.map(point => ({ x: point.x, y: point.y })) : null
         }));
 
+        console.log("Final positions after dragging selection:", finalPositions);
+
         // Push action to undo stack
         undoStack.push({
             action: "move",
@@ -491,6 +521,9 @@ canvas.addEventListener("mouseup", (event) => {
         });
 
         redoStack = []; // Clear redo stack
+
+        // Clear selected items to ensure blue transparent color does not reappear
+        selectedItems = [];
     }
 
     if (selecting) {
@@ -529,6 +562,12 @@ canvas.addEventListener("mouseup", (event) => {
         draggingWire = null;
         draggingWirePointIndex = null;
     }
+
+    // End dragging of selected items
+    if (draggingSelection) {
+        draggingSelection = false;
+        console.log("Stopped dragging selected items.");
+    }
 });
 
 // Update wires when components move
@@ -566,6 +605,14 @@ function updateNodes(component) {
         const rotatedY = offsetX * Math.sin((component.rotation * Math.PI) / 180) + offsetY * Math.cos((component.rotation * Math.PI) / 180);
         node.x = Math.round((centerX + rotatedX) / gridSize) * gridSize;
         node.y = Math.round((centerY + rotatedY) / gridSize) * gridSize;
+    });
+}
+
+// Ensure nodes remain connected to components during drag operations
+function updateNodesDuringDrag(component, deltaX, deltaY) {
+    component.nodes.forEach(node => {
+        node.x += deltaX;
+        node.y += deltaY;
     });
 }
 
@@ -636,10 +683,20 @@ function showContextMenu(x, y, isComponent, isSelection = false) {
         rotateOption.innerText = "Rotate";
         rotateOption.onclick = function() {
             if (contextMenuComponent) {
+                const previousRotation = contextMenuComponent.rotation;
                 contextMenuComponent.rotation = (contextMenuComponent.rotation + 90) % 360;
                 updateNodes(contextMenuComponent);
                 updateWires();
                 drawGrid();
+
+                // Push action to undo stack
+                undoStack.push({
+                    action: "rotate",
+                    component: contextMenuComponent,
+                    previousRotation: previousRotation,
+                    newRotation: contextMenuComponent.rotation
+                });
+                redoStack = []; // Clear redo stack
             }
             document.body.removeChild(menu);
         };
@@ -655,6 +712,7 @@ function showContextMenu(x, y, isComponent, isSelection = false) {
 
                 // Push action to undo stack
                 undoStack.push({ action: "add", type: "component", component: newComp });
+                redoStack = []; // Clear redo stack
 
                 drawGrid();
             }
@@ -903,6 +961,15 @@ function undo() {
                 }
             });
             updateWires();
+        } else if (action.action === "rotate") {
+            // Undo rotating component
+            action.component.rotation = action.previousRotation;
+            updateNodes(action.component);
+            updateWires();
+        } else if (action.action === "toggleSwitch") {
+            // Undo toggling switch
+            action.component.img.src = `images/switch_${action.previousState}.svg`;
+            action.component.img.onload = () => drawGrid();
         }
 
         // Clear selected items to ensure blue transparent color does not reappear
@@ -965,6 +1032,15 @@ function redo() {
                 }
             });
             updateWires();
+        } else if (action.action === "rotate") {
+            // Redo rotating component
+            action.component.rotation = action.newRotation;
+            updateNodes(action.component);
+            updateWires();
+        } else if (action.action === "toggleSwitch") {
+            // Redo toggling switch
+            action.component.img.src = `images/switch_${action.newState}.svg`;
+            action.component.img.onload = () => drawGrid();
         }
 
         drawGrid();
@@ -992,26 +1068,10 @@ function pointToSegmentDistance(px, py, p1, p2) {
     return Math.sqrt((px - x) ** 2 + (py - y) ** 2);
 }
 
-
 document.addEventListener("DOMContentLoaded", function() {
-    window.toggleSwitch = function(event) {
-        // Check if the event is a left-click
-        if (event.button === 0) {
-            var lever = document.getElementById("switch_lever");
-            if (lever.getAttribute("x2") == "125") {
-                lever.setAttribute("x2", "30");
-                lever.setAttribute("y2", "70");
-            } else {
-                lever.setAttribute("x2", "125");
-                lever.setAttribute("y2", "15");
-            }
-        }
-    };
-
     // Initial draw
     drawGrid();
 });
-
 
 function serializeCircuit() {
     const circuitData = {
@@ -1087,6 +1147,25 @@ reader.readAsText(file);
 });
 
 document.getElementById('save-button').addEventListener('click', saveCircuitToFile);
+
+// Function to toggle switch state
+function toggleSwitch(component) {
+    const previousState = component.img.src.includes("switch_open.svg") ? "open" : "closed";
+    const newState = previousState === "open" ? "closed" : "open";
+
+    component.img.src = `images/switch_${newState}.svg`;
+    component.img.onload = () => drawGrid(); // Ensure the image is loaded before redrawing
+
+    // Push action to undo stack
+    undoStack.push({
+        action: "toggleSwitch",
+        component: component,
+        previousState: previousState,
+        newState: newState
+    });
+
+    redoStack = []; // Clear redo stack
+}
 
 // Initial draw
 drawGrid();

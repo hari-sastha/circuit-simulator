@@ -705,7 +705,7 @@ function showContextMenu(x, y, isComponent, isSelection = false) {
         duplicateOption.innerText = "Duplicate";
         duplicateOption.onclick = function() {
             if (contextMenuComponent) {
-                const newComp = { ...contextMenuComponent, x: contextMenuComponent.x + gridSize, y: contextMenuComponent.y + gridSize };
+                const newComp = { ...contextMenuComponent, x: contextMenuComponent.x + gridSize * 3, y: contextMenuComponent.y + gridSize * 3 };
                 newComp.nodes = newComp.nodes.map(node => ({ x: node.x, y: node.y }));
                 components.push(newComp);
                 updateNodes(newComp);
@@ -857,7 +857,7 @@ function deleteComponent(component) {
     drawGrid();
 }
 
-// Keyboard shortcuts for rotate, delete, undo, and redo
+// Keyboard shortcuts for rotate, delete, undo, redo, and cancel wire drawing
 document.addEventListener("keydown", (event) => {
     if (event.key === "r" && contextMenuComponent) {
         contextMenuComponent.rotation = (contextMenuComponent.rotation + 90) % 360;
@@ -872,6 +872,11 @@ document.addEventListener("keydown", (event) => {
         undo();
     } else if (event.ctrlKey && event.key === "y") {
         redo();
+    } else if (event.key === "Escape" && drawingWire) {
+        // Cancel wire drawing
+        drawingWire = false;
+        wirePath = [];
+        drawGrid();
     }
 });
 

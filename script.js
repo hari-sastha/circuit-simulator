@@ -35,6 +35,8 @@ let initialPositions = [];
 let draggingWire = null;
 let draggingWirePointIndex = null;
 
+let isRunning = false;
+
 // Increase canvas size
 canvas.width = window.innerWidth * 2;
 canvas.height = window.innerHeight * 2;
@@ -1153,6 +1155,8 @@ reader.readAsText(file);
 
 document.getElementById('save-button').addEventListener('click', saveCircuitToFile);
 
+document.getElementById('run-button').addEventListener('click', toggleRun);
+
 // Function to toggle switch state
 function toggleSwitch(component) {
     const previousState = component.img.src.includes("switch_open.svg") ? "open" : "closed";
@@ -1170,6 +1174,20 @@ function toggleSwitch(component) {
     });
 
     redoStack = []; // Clear redo stack
+}
+
+function toggleRun() {
+    isRunning = !isRunning;
+    components.forEach(component => {
+        if (component.img.alt === "Led") {
+            const newImg = new Image();
+            newImg.onload = () => {
+                component.img.src = newImg.src;
+                drawGrid();
+            };
+            newImg.src = isRunning ? "images/led_red.svg" : "images/led.svg"; // Toggle between red-filled LED image and normal
+        }
+    });
 }
 
 // Initial draw

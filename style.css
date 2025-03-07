@@ -119,6 +119,9 @@ canvas {
     padding: 5px 10px; /* Add padding for better spacing */
     border-radius: 5px; /* Rounded corners */
     transition: background 0.3s; /* Smooth background transition */
+    font-size: 18px; /* Increase font size */
+    display: flex;
+    align-items: center; /* Center vertically */
 }
 
 .toolbar-item:hover {

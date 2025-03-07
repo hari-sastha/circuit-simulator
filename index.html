@@ -9,7 +9,7 @@
         .toolbar {
             background: #333;
             color: white;
-            padding: 10px;
+            padding: 3px 8px; /* Further decrease padding for smaller height */
             display: flex;
             gap: 20px;
             position: fixed;
@@ -61,6 +61,11 @@
                 <div onclick="saveCircuitToFile()">Save As</div>
                 <div>Exit</div>
             </div>
+        </div>
+        <div id="run-button" class="run-button" onclick="toggleRun()">
+            <svg viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+            </svg>
         </div>
     </div>
 

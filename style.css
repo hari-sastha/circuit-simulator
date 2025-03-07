@@ -99,3 +99,65 @@ canvas {
 .color-option:last-child {
     border-bottom: none;
 }
+
+.toolbar {
+    background: #444; /* Darker background */
+    color: white;
+    padding: 3px 8px; /* Further decrease padding for smaller height */
+    display: flex;
+    gap: 20px;
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Add shadow for depth */
+}
+
+.toolbar-item {
+    position: relative;
+    cursor: pointer;
+    padding: 5px 10px; /* Add padding for better spacing */
+    border-radius: 5px; /* Rounded corners */
+    transition: background 0.3s; /* Smooth background transition */
+}
+
+.toolbar-item:hover {
+    background: #555; /* Slightly lighter background on hover */
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: white;
+    color: black;
+    border: 1px solid #ccc;
+    display: none;
+    flex-direction: column;
+    width: 120px; /* Increase width for better spacing */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Add shadow for depth */
+    border-radius: 5px; /* Rounded corners */
+}
+
+.dropdown-menu div {
+    padding: 8px 12px; /* Add padding for better spacing */
+    cursor: pointer;
+    transition: background 0.3s; /* Smooth background transition */
+}
+
+.dropdown-menu div:hover {
+    background: #f0f0f0; /* Lighter background on hover */
+}
+
+.toolbar .run-button {
+    margin-left: auto;
+    margin-right: 20px; /* Move it a little to the left */
+    cursor: pointer;
+    padding: 5px;
+}
+
+.toolbar .run-button svg {
+    fill: white;
+    width: 30px; /* Increase size */
+    height: 30px; /* Increase size */
+}

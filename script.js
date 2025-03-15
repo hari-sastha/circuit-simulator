@@ -119,7 +119,7 @@ function drawGrid() {
     ctx.restore();
 }
 
-// Draw a component with rotation
+// Draw a component with rotation and display name and value
 function drawRotatedComponent(component) {
     ctx.save();
 
@@ -131,6 +131,15 @@ function drawRotatedComponent(component) {
     ctx.translate(centerX, centerY);
     ctx.rotate((component.rotation * Math.PI) / 180);
     ctx.drawImage(component.img, -component.width / 2, -component.height / 2, component.width, component.height);
+
+    // Draw component name and value
+    ctx.fillStyle = "black";
+    ctx.font = "12px Arial";
+    let displayText = component.name;
+    if (component.unit) {
+        displayText += `: ${component.value} ${component.unit}`;
+    }
+    ctx.fillText(displayText, -component.width / 2, -component.height / 2 - 5);
 
     ctx.restore();
 
@@ -178,6 +187,7 @@ canvas.addEventListener("dragover", (event) => {
     event.preventDefault();
 });
 
+// Add default name, value, and unit to new components
 canvas.addEventListener("drop", (event) => {
     event.preventDefault();
     const type = event.dataTransfer.getData("type");
@@ -212,8 +222,26 @@ canvas.addEventListener("drop", (event) => {
         ];
     }
 
+    // Determine the SI unit based on the component type
+    let unit = "";
+    if (type === "resistor") {
+        unit = "Ω"; // Ohm
+    } else if (type === "capacitor") {
+        unit = "F"; // Farad
+    } else if (type === "inductor") {
+        unit = "H"; // Henry
+    } else if (componentClass.includes("npn-component") || componentClass.includes("pnp-component")) {
+        unit = "V"; // Volt
+    } else if (type === "battery" || type === "led") {
+        unit = "V"; // Volt
+    } else if (type === "logic-component" || type === "switch") {
+        unit = ""; // No unit for logic components and switches
+    } else {
+        unit = "unit"; // Default unit if not specified
+    }
+
     // Add new component
-    const newComponent = { img, x, y, width: 80, height: 40, nodes, rotation: 0 };
+    const newComponent = { img, x, y, width: 80, height: 40, nodes, rotation: 0, name: type, value: "1", unit };
     components.push(newComponent);
     updateNodes(newComponent);
 
@@ -682,8 +710,13 @@ function showContextMenu(x, y, isComponent, isSelection = false) {
 
     if (isComponent) {
         const rotateOption = document.createElement("div");
+        rotateOption.className = "rotate-option";
         rotateOption.innerText = "Rotate";
-        rotateOption.onclick = function() {
+        
+        const rotateClockwise = document.createElement("div");
+        rotateClockwise.innerHTML = "&#x27A1;"; // Right arrow
+        rotateClockwise.className = "rotate-icon";
+        rotateClockwise.onclick = function() {
             if (contextMenuComponent) {
                 const previousRotation = contextMenuComponent.rotation;
                 contextMenuComponent.rotation = (contextMenuComponent.rotation + 90) % 360;
@@ -702,6 +735,32 @@ function showContextMenu(x, y, isComponent, isSelection = false) {
             }
             document.body.removeChild(menu);
         };
+
+        const rotateAnticlockwise = document.createElement("div");
+        rotateAnticlockwise.innerHTML = "&#x2B05;"; // Left arrow
+        rotateAnticlockwise.className = "rotate-icon";
+        rotateAnticlockwise.onclick = function() {
+            if (contextMenuComponent) {
+                const previousRotation = contextMenuComponent.rotation;
+                contextMenuComponent.rotation = (contextMenuComponent.rotation - 90 + 360) % 360;
+                updateNodes(contextMenuComponent);
+                updateWires();
+                drawGrid();
+
+                // Push action to undo stack
+                undoStack.push({
+                    action: "rotate",
+                    component: contextMenuComponent,
+                    previousRotation: previousRotation,
+                    newRotation: contextMenuComponent.rotation
+                });
+                redoStack = []; // Clear redo stack
+            }
+            document.body.removeChild(menu);
+        };
+
+        rotateOption.appendChild(rotateAnticlockwise);
+        rotateOption.appendChild(rotateClockwise);
         
         const duplicateOption = document.createElement("div");
         duplicateOption.innerText = "Duplicate";
@@ -752,11 +811,13 @@ function showContextMenu(x, y, isComponent, isSelection = false) {
         // Submenu for colors
         const colorMenu = document.createElement("div");
         colorMenu.className = "submenu-options";
+        colorMenu.style.display = "none"; // Hide initially
 
         const colors = ["Red", "Green", "Black", "Blue", "Yellow"];
         colors.forEach(color => {
             const colorItem = document.createElement("div");
             colorItem.innerText = color;
+            colorItem.className = "color-option";
             colorItem.style.color = color.toLowerCase();
             colorItem.onclick = function() {
                 if (contextMenuWire) {
@@ -769,7 +830,8 @@ function showContextMenu(x, y, isComponent, isSelection = false) {
         });
 
         colorOption.addEventListener("mouseenter", () => {
-            colorMenu.style.display = "block";
+            colorMenu.style.display = "flex";
+            colorMenu.style.flexDirection = "column"; // Ensure vertical order
         });
 
         colorOption.addEventListener("mouseleave", () => {
@@ -1192,3 +1254,81 @@ function toggleRun() {
 
 // Initial draw
 drawGrid();
+
+canvas.addEventListener("dblclick", (event) => {
+    const mouseX = (event.offsetX - panOffset.x * scale) / scale;
+    const mouseY = (event.offsetY - panOffset.y * scale) / scale;
+
+    // Check if double-clicked on a component
+    for (let comp of components) {
+        if (
+            mouseX >= comp.x &&
+            mouseX <= comp.x + comp.width &&
+            mouseY >= comp.y &&
+            mouseY <= comp.y + comp.height
+        ) {
+            showPropertiesPopup(comp);
+            return;
+        }
+    }
+});
+
+// Show properties popup
+function showPropertiesPopup(component) {
+    const popup = document.createElement("div");
+    popup.className = "properties-popup";
+
+    const nameLabel = document.createElement("label");
+    nameLabel.innerText = "Name:";
+    const nameInput = document.createElement("input");
+    nameInput.value = component.name;
+
+    const valueLabel = document.createElement("label");
+    valueLabel.innerText = "Value:";
+    const valueInput = document.createElement("input");
+    valueInput.value = component.value;
+
+    const saveButton = document.createElement("button");
+    saveButton.innerText = "Save";
+    saveButton.onclick = () => saveProperties();
+
+    const cancelButton = document.createElement("button");
+    cancelButton.innerText = "Cancel";
+    cancelButton.onclick = () => {
+        document.body.removeChild(popup);
+    };
+
+    popup.appendChild(nameLabel);
+    popup.appendChild(nameInput);
+    popup.appendChild(valueLabel);
+    popup.appendChild(valueInput);
+    popup.appendChild(saveButton);
+    popup.appendChild(cancelButton);
+
+    document.body.appendChild(popup);
+
+    // Position the popup near the component
+    const rect = canvas.getBoundingClientRect();
+    const popupX = rect.left + (component.x + component.width / 2) * scale + panOffset.x;
+    const popupY = rect.top + (component.y + component.height / 2) * scale + panOffset.y;
+    popup.style.left = `${popupX}px`;
+    popup.style.top = `${popupY}px`;
+
+    // Save properties function
+    function saveProperties() {
+        component.name = nameInput.value;
+        component.value = valueInput.value;
+        document.body.removeChild(popup);
+        drawGrid();
+    }
+
+    // Add event listener for Enter key
+    popup.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault(); // Prevent form submission
+            saveProperties();
+        }
+    });
+
+    nameInput.focus(); // Focus on the name input field
+}

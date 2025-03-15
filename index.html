@@ -50,6 +50,11 @@
             display: inline-block;
             margin-left: 10px;
         }
+        .rotate-icon {
+            width: 20px;
+            height: 20px;
+            margin: 0 5px;
+        }
     </style>
 </head>
 <body>
@@ -183,6 +188,77 @@
         // Initial state
         document.getElementById('components-list').style.display = 'none';
         document.getElementById('logic-components-list').style.display = 'none';
+
+        canvas.addEventListener("dblclick", (event) => {
+            const mouseX = (event.offsetX - panOffset.x * scale) / scale;
+            const mouseY = (event.offsetY - panOffset.y * scale) / scale;
+
+            // Check if double-clicked on a component
+            for (let comp of components) {
+                if (
+                    mouseX >= comp.x &&
+                    mouseX <= comp.x + comp.width &&
+                    mouseY >= comp.y &&
+                    mouseY <= comp.y + comp.height
+                ) {
+                    showPropertiesPopup(comp);
+                    return;
+                }
+            }
+        });
+
+        // Show properties popup
+        function showPropertiesPopup(component) {
+            const popup = document.createElement("div");
+            popup.className = "properties-popup";
+
+            const nameLabel = document.createElement("label");
+            nameLabel.innerText = "Name:";
+            const nameInput = document.createElement("input");
+            nameInput.value = component.name;
+
+            const valueLabel = document.createElement("label");
+            valueLabel.innerText = "Value:";
+            const valueInput = document.createElement("input");
+            valueInput.value = component.value;
+
+            const saveButton = document.createElement("button");
+            saveButton.innerText = "Save";
+            saveButton.onclick = () => saveProperties();
+
+            const cancelButton = document.createElement("button");
+            cancelButton.innerText = "Cancel";
+            cancelButton.onclick = () => {
+                document.body.removeChild(popup);
+            };
+
+            popup.appendChild(nameLabel);
+            popup.appendChild(nameInput);
+            popup.appendChild(valueLabel);
+            popup.appendChild(valueInput);
+            popup.appendChild(saveButton);
+            popup.appendChild(cancelButton);
+
+            document.body.appendChild(popup);
+
+            // Save properties function
+            function saveProperties() {
+                component.name = nameInput.value;
+                component.value = valueInput.value;
+                document.body.removeChild(popup);
+                drawGrid();
+            }
+
+            // Add event listener for Enter key
+            popup.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    event.preventDefault(); // Prevent form submission
+                    saveProperties();
+                }
+            });
+
+            nameInput.focus(); // Focus on the name input field
+        }
     </script>
 </body>
 </html>
